@@ -7,6 +7,7 @@ import pygame
 from src.core.constants import (
     BLACK,
     BLUE,
+    GAME_OVER_BACKGROUND_FILE,
     GAME_OVER_STATE,
     GRAY,
     HUD_HEIGHT,
@@ -67,6 +68,13 @@ class GameView:
         self.menu_title_font = pygame.font.SysFont("impact", 68)
         self.menu_subtitle_font = pygame.font.SysFont("impact", 34)
         self.menu_art = MenuArt()
+        game_over_image = pygame.image.load(
+            str(GAME_OVER_BACKGROUND_FILE)
+        ).convert()
+        self.game_over_background = pygame.transform.smoothscale(
+            game_over_image,
+            (SCREEN_WIDTH, SCREEN_HEIGHT),
+        )
 
     @staticmethod
     def name_input_rect() -> pygame.Rect:
@@ -225,6 +233,8 @@ class GameView:
         self._draw_text("Esc - menu", 430, 620, GRAY)
 
     def _draw_end_screen(self, state: str) -> None:
+        if state == GAME_OVER_STATE:
+            self.screen.blit(self.game_over_background, (0, 0))
         title = "Game Over" if state == GAME_OVER_STATE else "Run Complete"
         self._draw_center_title(title, 220)
         self._draw_text("Esc - menu", 440, 330, WHITE)
