@@ -400,7 +400,6 @@ class Game:
             Ничего.
         """
         zombies = self.entities.zombies
-        # Repeated passes settle groups without a separate physics engine.
         for _ in range(ZOMBIE_SEPARATION_MAX_PASSES):
             had_overlap = False
             for zombie, other in self._nearby_zombie_pairs():
@@ -582,7 +581,6 @@ class Game:
         score = player.score
         hp = player.hp
         self._load_level(next_level_id, score, hp)
-        # Save after transition so Continue starts at the new checkpoint.
         self.save_current_game()
 
     def _spawn_next_wave_if_ready(self) -> None:

@@ -91,5 +91,4 @@ class SoundManager:
                 pygame.mixer.init()
             return True
         except pygame.error:
-            # The game remains playable on systems without an audio device.
             return False
