@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pygame
 
 from src.core.constants import (
     GREEN,
+    NORMAL_ENEMY_SPRITE_FILE,
     NORMAL_ZOMBIE_SCORE,
     TILE_SIZE,
     ZOMBIE_ATTACK_COOLDOWN,
@@ -15,6 +18,7 @@ from src.core.constants import (
     ZOMBIE_SIZE,
     ZOMBIE_SPEED,
 )
+from src.core.sprite_cache import SpriteCache
 from src.entities.base import Entity
 from src.managers.pathfinder import Pathfinder
 
@@ -27,11 +31,13 @@ class Zombie(Entity):
         hp_multiplier: int = 1,
         wave_number: int = 0,
         score_value: int = NORMAL_ZOMBIE_SCORE,
+        sprite_file: Path = NORMAL_ENEMY_SPRITE_FILE,
     ) -> None:
         super().__init__(position, ZOMBIE_SIZE, color, ZOMBIE_HP)
         self.hp *= hp_multiplier
         self.wave_number = wave_number
         self.score_value = score_value
+        self._sprite = SpriteCache.get(sprite_file, self.size)
         self.attack_timer = 0.0
         self._path_timer = 0.0
         self._path: list[tuple[int, int]] = []
@@ -62,6 +68,10 @@ class Zombie(Entity):
 
     def damage(self) -> int:
         return ZOMBIE_DAMAGE
+
+    def draw(self, surface: pygame.Surface, camera: pygame.Vector2) -> None:
+        rect = self.rect.move(-camera.x, -camera.y)
+        surface.blit(self._sprite, rect)
 
     def _build_path(
         self,

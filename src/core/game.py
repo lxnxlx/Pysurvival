@@ -14,6 +14,8 @@ from src.core.constants import (
     GAME_OVER_STATE,
     GRAY,
     HUD_HEIGHT,
+    HUD_MARGIN,
+    HUD_TEXT_Y,
     LEVEL_ONE_ID,
     LEVEL_TWO_ID,
     INVULNERABILITY_ORB_DROP_CHANCE,
@@ -33,6 +35,8 @@ from src.core.constants import (
     SCORES_STATE,
     TILE_SIZE,
     VICTORY_STATE,
+    WALL_TILE_ATLAS_FILE,
+    WALL_TILE_COLUMNS,
     WHITE,
     YELLOW,
 )
@@ -47,6 +51,7 @@ from src.managers.save_system import SaveData, SaveSystem
 from src.managers.sound_manager import SoundManager
 from src.managers.wave_manager import WaveManager
 from src.ui.button import Button
+from src.ui.tile_set import WallTileSet
 
 
 class Game:
@@ -57,6 +62,11 @@ class Game:
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont("arial", 24)
         self.large_font = pygame.font.SysFont("arial", 52, bold=True)
+        self.wall_tiles = WallTileSet(
+            WALL_TILE_ATLAS_FILE,
+            TILE_SIZE,
+            WALL_TILE_COLUMNS,
+        )
 
         self.running = True
         self.state_manager = StateManager()
@@ -137,9 +147,9 @@ class Game:
         self.player_name = save_data.player_name
         player.score = save_data.score
         player.hp = save_data.hp
-        player.ammo = save_data.ammo
-        player.reserve_ammo = save_data.reserve_ammo
         player.has_key = save_data.has_key
+        if player.has_key and self.entities.portal is not None:
+            self.entities.portal.unlock()
         self.state_manager.set_state(PLAYING_STATE)
 
     def save_current_game(self) -> None:
@@ -152,8 +162,6 @@ class Game:
                 level_id=self.level.level_id,
                 score=player.score,
                 hp=player.hp,
-                ammo=player.ammo,
-                reserve_ammo=player.reserve_ammo,
                 has_key=player.has_key,
             )
         )
@@ -209,8 +217,6 @@ class Game:
                 self.resume_game()
             elif not self.state_manager.is_state(MENU_STATE):
                 self.show_menu()
-        if event.key == pygame.K_r and self.entities.player is not None:
-            self.entities.player.reload()
         if event.key == pygame.K_e:
             self._try_use_exit()
 
@@ -281,9 +287,12 @@ class Game:
 
     def _shoot_from_mouse(self) -> None:
         player = self.entities.player
-        if player is None or not pygame.mouse.get_pressed(num_buttons=3)[0]:
+        if player is None:
             return
         target = pygame.Vector2(pygame.mouse.get_pos()) + self.camera
+        player.aim_at(target)
+        if not pygame.mouse.get_pressed(num_buttons=3)[0]:
+            return
         bullet = player.try_shoot(target)
         if bullet is not None:
             self.entities.bullets.append(bullet)
@@ -331,6 +340,8 @@ class Game:
         if key is not None and key.rect.colliderect(player.rect):
             key.alive = False
             player.has_key = True
+            if self.entities.portal is not None:
+                self.entities.portal.unlock()
             self.sound_manager.play_key_pickup()
         for medkit in self.entities.medkits:
             if medkit.rect.colliderect(player.rect):
@@ -454,8 +465,11 @@ class Game:
                     TILE_SIZE,
                     TILE_SIZE,
                 )
-                color = DARK_GRAY if tile == "#" else GRAY
-                pygame.draw.rect(self.screen, color, rect)
+                if tile == "#":
+                    wall_tile = self.wall_tiles.get_tile(x_pos, y_pos)
+                    self.screen.blit(wall_tile, rect)
+                else:
+                    pygame.draw.rect(self.screen, GRAY, rect)
                 pygame.draw.rect(self.screen, BLACK, rect, width=1)
 
     def _draw_hud(self) -> None:
@@ -469,11 +483,21 @@ class Game:
         level_text = f"{self.level.title}"
         key_text = "Key: yes" if player.has_key else "Key: no"
         buff_text = "Invulnerable" if player.is_invulnerable else ""
-        self._draw_text(hp_text, 18, 14, RED)
-        self._draw_text(score_text, 130, 14, WHITE)
-        self._draw_text(key_text, 310, 14, ORANGE)
-        self._draw_text(buff_text, 450, 14, BLUE)
-        self._draw_text(level_text, 650, 14, WHITE)
+        self._draw_text(hp_text, HUD_MARGIN, HUD_TEXT_Y, RED)
+        self._draw_text(score_text, 130, HUD_TEXT_Y, WHITE)
+        self._draw_text(key_text, 310, HUD_TEXT_Y, ORANGE)
+        self._draw_text(buff_text, 450, HUD_TEXT_Y, BLUE)
+        self._draw_text(level_text, 650, HUD_TEXT_Y, WHITE)
+        self._draw_fps()
+
+    def _draw_fps(self) -> None:
+        fps_text = f"FPS: {self.clock.get_fps():.0f}"
+        surface = self.font.render(fps_text, True, WHITE)
+        rect = surface.get_rect(
+            top=HUD_TEXT_Y,
+            right=SCREEN_WIDTH - HUD_MARGIN,
+        )
+        self.screen.blit(surface, rect)
 
     def _draw_menu(self) -> None:
         self._draw_center_title("PySurvival", 150)
@@ -524,7 +548,7 @@ class Game:
         if self.level is None or self.level.level_id != LEVEL_ONE_ID:
             return
         hint_lines = [
-            "WASD - move, Left mouse - shoot, R - reload",
+            "WASD - move, Left mouse - shoot",
             "Clear all waves, pick up the key, press E near portal",
         ]
         panel = pygame.Rect(18, HUD_HEIGHT + 12, 520, 76)

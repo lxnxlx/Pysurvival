@@ -8,6 +8,7 @@ import pygame
 
 from src.core.constants import (
     BLUE,
+    BLUE_ENEMY_SPRITE_FILE,
     BLUE_ZOMBIE_HP_MULTIPLIER,
     BLUE_ZOMBIE_SCORE,
     BLUE_ZOMBIE_SPAWN_CHANCE,
@@ -20,6 +21,7 @@ from src.core.constants import (
     LEVEL_TWO_ID,
     LEVEL_TWO_WAVES,
     RED,
+    RED_ENEMY_SPRITE_FILE,
     RED_ZOMBIE_HP_MULTIPLIER,
     RED_ZOMBIE_SCORE,
     RED_ZOMBIE_SPAWN_CHANCE,
@@ -135,18 +137,20 @@ class WaveManager:
         if kind == BLUE_ZOMBIE_KIND:
             return Zombie(
                 position,
-                BLUE,
-                BLUE_ZOMBIE_HP_MULTIPLIER,
-                wave_number,
-                BLUE_ZOMBIE_SCORE,
+                color=BLUE,
+                hp_multiplier=BLUE_ZOMBIE_HP_MULTIPLIER,
+                wave_number=wave_number,
+                score_value=BLUE_ZOMBIE_SCORE,
+                sprite_file=BLUE_ENEMY_SPRITE_FILE,
             )
         if kind == RED_ZOMBIE_KIND:
             return Zombie(
                 position,
-                RED,
-                RED_ZOMBIE_HP_MULTIPLIER,
-                wave_number,
-                RED_ZOMBIE_SCORE,
+                color=RED,
+                hp_multiplier=RED_ZOMBIE_HP_MULTIPLIER,
+                wave_number=wave_number,
+                score_value=RED_ZOMBIE_SCORE,
+                sprite_file=RED_ENEMY_SPRITE_FILE,
             )
         return Zombie(position, GREEN, wave_number=wave_number)
 

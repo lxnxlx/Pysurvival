@@ -1,4 +1,4 @@
-"""Player entity with shooting and reload state."""
+"""Player entity with movement, shooting and temporary buffs."""
 
 from __future__ import annotations
 
@@ -7,16 +7,16 @@ import pygame
 from src.core.constants import (
     BLUE,
     BLACK,
+    INVULNERABLE_SPRITE_TINT,
     PLAYER_DAMAGE_INVULNERABILITY_SECONDS,
     PLAYER_INVULNERABILITY_SECONDS,
-    PLAYER_AMMO,
     PLAYER_MAX_HP,
-    PLAYER_RELOAD_SECONDS,
-    PLAYER_RESERVE_AMMO,
+    PLAYER_SPRITE_FILE,
     PLAYER_SHOOT_COOLDOWN,
     PLAYER_SIZE,
     PLAYER_SPEED,
 )
+from src.core.sprite_cache import SpriteCache
 from src.entities.base import Entity
 from src.entities.bullet import Bullet
 
@@ -24,19 +24,18 @@ from src.entities.bullet import Bullet
 class Player(Entity):
     def __init__(self, position: pygame.Vector2) -> None:
         super().__init__(position, PLAYER_SIZE, BLUE, PLAYER_MAX_HP)
-        self.ammo = PLAYER_AMMO
-        self.reserve_ammo = PLAYER_RESERVE_AMMO
-        self.infinite_ammo = True
         self.score = 0
         self.has_key = False
         self._shoot_timer = 0.0
-        self._reload_timer = 0.0
         self._invulnerability_timer = 0.0
         self._damage_invulnerability_timer = 0.0
-
-    @property
-    def is_reloading(self) -> bool:
-        return self._reload_timer > 0
+        self._facing_angle = 0.0
+        self._sprite = SpriteCache.get(PLAYER_SPRITE_FILE, self.size)
+        self._invulnerable_sprite = SpriteCache.get(
+            PLAYER_SPRITE_FILE,
+            self.size,
+            INVULNERABLE_SPRITE_TINT,
+        )
 
     @property
     def is_invulnerable(self) -> bool:
@@ -46,9 +45,12 @@ class Player(Entity):
     def is_damage_protected(self) -> bool:
         return self.is_invulnerable or self._damage_invulnerability_timer > 0
 
+    @property
+    def facing_angle(self) -> float:
+        return self._facing_angle
+
     def update_timers(self, dt: float) -> None:
         self._shoot_timer = max(0.0, self._shoot_timer - dt)
-        self._reload_timer = max(0.0, self._reload_timer - dt)
         self._invulnerability_timer = max(
             0.0,
             self._invulnerability_timer - dt,
@@ -58,8 +60,6 @@ class Player(Entity):
             self._damage_invulnerability_timer - dt,
         )
         self.color = BLACK if self.is_invulnerable else BLUE
-        if self._reload_timer == 0 and self.ammo == 0:
-            self._finish_reload()
 
     def move(
         self,
@@ -76,27 +76,22 @@ class Player(Entity):
         self._move_axis(pygame.Vector2(0, velocity.y), walls, bounds)
 
     def try_shoot(self, target: pygame.Vector2) -> Bullet | None:
-        if (
-            self._shoot_timer > 0
-            or self.is_reloading
-            or (not self.infinite_ammo and self.ammo <= 0)
-        ):
-            return None
         direction = target - self.center
         if direction.length_squared() == 0:
             return None
+        self.aim_at(target)
+        if self._shoot_timer > 0:
+            return None
 
-        if not self.infinite_ammo:
-            self.ammo -= 1
         self._shoot_timer = PLAYER_SHOOT_COOLDOWN
         return Bullet(self.center, direction.normalize())
 
-    def reload(self) -> None:
-        if self.infinite_ammo:
+    def aim_at(self, target: pygame.Vector2) -> None:
+        direction = target - self.center
+        if direction.length_squared() == 0:
             return
-        if self.ammo == PLAYER_AMMO or self.reserve_ammo <= 0:
-            return
-        self._reload_timer = PLAYER_RELOAD_SECONDS
+        sprite_forward = pygame.Vector2(0, -1)
+        self._facing_angle = -sprite_forward.angle_to(direction)
 
     def heal(self, amount: int) -> None:
         self.hp = min(PLAYER_MAX_HP, self.hp + amount)
@@ -114,11 +109,19 @@ class Player(Entity):
                 PLAYER_DAMAGE_INVULNERABILITY_SECONDS
             )
 
-    def _finish_reload(self) -> None:
-        needed = PLAYER_AMMO - self.ammo
-        loaded = min(needed, self.reserve_ammo)
-        self.ammo += loaded
-        self.reserve_ammo -= loaded
+    def draw(self, surface: pygame.Surface, camera: pygame.Vector2) -> None:
+        sprite = (
+            self._invulnerable_sprite
+            if self.is_invulnerable
+            else self._sprite
+        )
+        rotated_sprite = pygame.transform.rotate(
+            sprite,
+            self._facing_angle,
+        )
+        screen_center = self.center - camera
+        rect = rotated_sprite.get_rect(center=screen_center)
+        surface.blit(rotated_sprite, rect)
 
     def _move_axis(
         self,

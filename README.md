@@ -15,7 +15,6 @@ python -m src.main
 - `WASD` - move
 - Mouse - aim
 - Left mouse button - shoot
-- `R` - reload
 - `E` - use door or portal
 - `Esc` - pause
 

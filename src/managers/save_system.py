@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 
 from src.core.constants import SAVE_FILE, SCORES_FILE, TOP_SCORES_LIMIT
@@ -15,8 +15,6 @@ class SaveData:
     level_id: int
     score: int
     hp: int
-    ammo: int
-    reserve_ammo: int
     has_key: bool
 
 
@@ -47,7 +45,13 @@ class SaveSystem:
             with self._save_file.open("r", encoding="utf-8") as file:
                 payload = json.load(file)
             payload.setdefault("player_name", "Player")
-            return SaveData(**payload)
+            current_fields = {item.name for item in fields(SaveData)}
+            current_payload = {
+                key: value
+                for key, value in payload.items()
+                if key in current_fields
+            }
+            return SaveData(**current_payload)
         except (json.JSONDecodeError, TypeError):
             return None
 

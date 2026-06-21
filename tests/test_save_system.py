@@ -11,14 +11,32 @@ def test_save_system_roundtrip(tmp_path):
         level_id=2,
         score=120,
         hp=70,
-        ammo=5,
-        reserve_ammo=24,
         has_key=True,
     )
 
     save_system.save_game(data)
 
     assert save_system.load_game() == data
+
+
+def test_save_system_ignores_obsolete_fields(tmp_path):
+    save_file = tmp_path / "save.json"
+    save_file.write_text(
+        (
+            '{"player_name": "Max", "level_id": 2, "score": 120, '
+            '"hp": 70, "legacy_field": 5, "has_key": true}'
+        ),
+        encoding="utf-8",
+    )
+    save_system = SaveSystem(
+        save_file=save_file,
+        scores_file=tmp_path / "scores.json",
+    )
+
+    loaded = save_system.load_game()
+
+    assert loaded is not None
+    assert loaded.score == 120
 
 
 def test_save_system_keeps_top_five_scores(tmp_path):
