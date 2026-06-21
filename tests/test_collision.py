@@ -1,5 +1,8 @@
 from dataclasses import dataclass
 
+import pygame
+
+from src.entities.zombie import Zombie
 from src.managers.collision_manager import CollisionManager
 
 
@@ -31,3 +34,12 @@ def test_intersects_ignores_touching_edges():
     right = RectStub(10, 0, 10, 10)
 
     assert not CollisionManager.intersects(left, right)
+
+
+def test_separate_removes_entity_overlap():
+    left = Zombie(pygame.Vector2(100, 100))
+    right = Zombie(pygame.Vector2(110, 100))
+
+    CollisionManager.separate(left, right)
+
+    assert not left.rect.colliderect(right.rect)

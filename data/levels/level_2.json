@@ -24,6 +24,5 @@
   "player_spawn": [2, 15],
   "zombie_spawns": [[17, 2], [21, 15], [2, 3], [11, 9], [17, 13]],
   "key_position": [12, 5],
-  "exit_position": [22, 15],
-  "wave_size": 12
+  "exit_position": [22, 15]
 }

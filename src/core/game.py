@@ -2,19 +2,16 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 import pygame
 
 from src.core.constants import (
-    BLACK,
-    BLUE,
     BULLET_DAMAGE,
     ENDLESS_LEVEL_ID,
     FPS,
     GAME_OVER_STATE,
-    GRAY,
     HUD_HEIGHT,
-    HUD_MARGIN,
-    HUD_TEXT_Y,
     LEVEL_ONE_ID,
     LEVEL_TWO_ID,
     INVULNERABILITY_ORB_DROP_CHANCE,
@@ -25,36 +22,40 @@ from src.core.constants import (
     MENU_BUTTON_BORDER_COLOR,
     MENU_BUTTON_HOVER_COLOR,
     MENU_STATE,
-    MENU_SUBTITLE_COLOR,
-    MENU_TITLE_COLOR,
-    ORANGE,
     PAUSE_STATE,
     PLAYING_STATE,
     PLAYER_DEFAULT_NAME,
     PLAYER_NAME_MAX_LENGTH,
-    RED,
     SCREEN_HEIGHT,
     SCREEN_WIDTH,
+    SAVE_VERSION,
     SCORES_STATE,
     TILE_SIZE,
-    VICTORY_STATE,
     WALL_TILE_ATLAS_FILE,
     WALL_TILE_COLUMNS,
-    WHITE,
-    YELLOW,
+    VICTORY_STATE,
+    ZOMBIE_SIZE,
+    ZOMBIE_SEPARATION_MAX_PASSES,
 )
 from src.core.level import Level, LevelLoader
 from src.core.state_manager import StateManager
 from src.entities.pickup import InvulnerabilityOrb, Key, Medkit, Portal
 from src.entities.player import Player
+from src.entities.zombie import Zombie
+from src.managers.collision_manager import CollisionManager
 from src.managers.entity_manager import EntityManager
 from src.managers.pathfinder import Pathfinder
 from src.managers.random_manager import PseudoRandom
-from src.managers.save_system import SaveData, SaveSystem
+from src.managers.save_system import (
+    PickupSaveData,
+    SaveData,
+    SaveSystem,
+    ZombieSaveData,
+)
 from src.managers.sound_manager import SoundManager
 from src.managers.wave_manager import WaveManager
 from src.ui.button import Button
-from src.ui.menu_art import MenuArt
+from src.ui.game_view import GameView
 from src.ui.tile_set import WallTileSet
 
 
@@ -64,16 +65,12 @@ class Game:
         pygame.display.set_caption("PySurvival: Zombie Waves")
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         self.clock = pygame.time.Clock()
-        self.font = pygame.font.SysFont("arial", 24)
-        self.large_font = pygame.font.SysFont("arial", 52, bold=True)
-        self.menu_title_font = pygame.font.SysFont("impact", 68)
-        self.menu_subtitle_font = pygame.font.SysFont("impact", 34)
-        self.menu_art = MenuArt()
         self.wall_tiles = WallTileSet(
             WALL_TILE_ATLAS_FILE,
             TILE_SIZE,
             WALL_TILE_COLUMNS,
         )
+        self.view = GameView(self.screen, self.clock, self.wall_tiles)
 
         self.running = True
         self.state_manager = StateManager()
@@ -139,6 +136,7 @@ class Game:
 
     def start_new_game(self) -> None:
         self.player_name = self._normalized_player_name()
+        self.save_system.clear_save()
         self.wave_manager.reset()
         self._load_level(LEVEL_ONE_ID)
         self.state_manager.set_state(PLAYING_STATE)
@@ -147,22 +145,83 @@ class Game:
         save_data = self.save_system.load_game()
         if save_data is None:
             return
-        self._load_level(save_data.level_id)
+        if save_data.version < SAVE_VERSION:
+            self._load_legacy_save(save_data)
+        else:
+            self._restore_game(save_data)
+        self.state_manager.set_state(PLAYING_STATE)
+
+    def _load_legacy_save(self, save_data: SaveData) -> None:
+        self._load_level(
+            save_data.level_id,
+            score=save_data.score,
+            hp=save_data.hp,
+        )
         player = self.entities.player
         if player is None:
             return
         self.player_name = save_data.player_name
-        player.score = save_data.score
-        player.hp = save_data.hp
         player.has_key = save_data.has_key
         if player.has_key and self.entities.portal is not None:
             self.entities.portal.unlock()
-        self.state_manager.set_state(PLAYING_STATE)
+
+    def _restore_game(self, save_data: SaveData) -> None:
+        self._load_level(
+            save_data.level_id,
+            score=save_data.score,
+            hp=save_data.hp,
+            spawn_wave=False,
+        )
+        player = self.entities.player
+        if player is None:
+            return
+        self.player_name = save_data.player_name
+        if save_data.player_x is not None and save_data.player_y is not None:
+            player.position.update(save_data.player_x, save_data.player_y)
+        player.has_key = save_data.has_key
+        self.wave_manager.restore(
+            save_data.wave_number,
+            save_data.kills_after_last_spawn,
+            save_data.last_wave_size,
+        )
+        self.entities.zombies = [
+            self._restore_zombie(item) for item in save_data.zombies
+        ]
+        self.entities.medkits = [
+            Medkit(pygame.Vector2(item.x_pos, item.y_pos))
+            for item in save_data.medkits
+        ]
+        self.entities.invulnerability_orbs = [
+            InvulnerabilityOrb(pygame.Vector2(item.x_pos, item.y_pos))
+            for item in save_data.invulnerability_orbs
+        ]
+        if (
+            save_data.key_spawned
+            and not player.has_key
+            and self.level is not None
+            and self.level.key_position is not None
+        ):
+            self.entities.key = Key(
+                self._tile_to_pixel(self.level.key_position)
+            )
+        if player.has_key and self.entities.portal is not None:
+            self.entities.portal.unlock()
+        self._spawn_key_if_level_clear()
+
+    def _restore_zombie(self, data: ZombieSaveData) -> Zombie:
+        zombie = self.wave_manager.create_zombie(
+            pygame.Vector2(data.x_pos, data.y_pos),
+            data.wave_number,
+            data.kind,
+        )
+        zombie.hp = data.hp
+        return zombie
 
     def save_current_game(self) -> None:
         if self.level is None or self.entities.player is None:
             return
         player = self.entities.player
+        wave_number, kills, last_wave_size = self.wave_manager.snapshot()
         self.save_system.save_game(
             SaveData(
                 player_name=self._normalized_player_name(),
@@ -170,6 +229,39 @@ class Game:
                 score=player.score,
                 hp=player.hp,
                 has_key=player.has_key,
+                player_x=float(player.position.x),
+                player_y=float(player.position.y),
+                wave_number=wave_number,
+                kills_after_last_spawn=kills,
+                last_wave_size=last_wave_size,
+                zombies=[
+                    ZombieSaveData(
+                        x_pos=float(zombie.position.x),
+                        y_pos=float(zombie.position.y),
+                        hp=zombie.hp,
+                        wave_number=zombie.wave_number,
+                        kind=zombie.kind,
+                    )
+                    for zombie in self.entities.zombies
+                    if zombie.alive
+                ],
+                key_spawned=self.entities.key is not None,
+                medkits=[
+                    PickupSaveData(
+                        x_pos=float(medkit.position.x),
+                        y_pos=float(medkit.position.y),
+                    )
+                    for medkit in self.entities.medkits
+                    if medkit.alive
+                ],
+                invulnerability_orbs=[
+                    PickupSaveData(
+                        x_pos=float(orb.position.x),
+                        y_pos=float(orb.position.y),
+                    )
+                    for orb in self.entities.invulnerability_orbs
+                    if orb.alive
+                ],
             )
         )
 
@@ -186,7 +278,13 @@ class Game:
     def stop(self) -> None:
         self.running = False
 
-    def _load_level(self, level_id: int, score: int = 0) -> None:
+    def _load_level(
+        self,
+        level_id: int,
+        score: int = 0,
+        hp: int | None = None,
+        spawn_wave: bool = True,
+    ) -> None:
         self.level = self.level_loader.load(level_id)
         self.sound_manager.play_level_music(level_id)
         self.pathfinder = Pathfinder(self.level.grid)
@@ -197,7 +295,10 @@ class Game:
             self._tile_to_pixel(self.level.player_spawn)
         )
         self.entities.player.score = score
-        self.entities.zombies = self.wave_manager.spawn_wave(self.level)
+        if hp is not None:
+            self.entities.player.hp = hp
+        if spawn_wave:
+            self.entities.zombies = self.wave_manager.spawn_wave(self.level)
 
         self.entities.portal = Portal(
             self._tile_to_pixel(self.level.exit_position)
@@ -224,11 +325,14 @@ class Game:
                 self.resume_game()
             elif not self.state_manager.is_state(MENU_STATE):
                 self.show_menu()
-        if event.key == pygame.K_e:
+        if (
+            event.key == pygame.K_e
+            and self.state_manager.is_state(PLAYING_STATE)
+        ):
             self._try_use_exit()
 
     def _handle_name_input(self, event: pygame.event.Event) -> None:
-        input_rect = self._name_input_rect()
+        input_rect = self.view.name_input_rect()
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             self.name_input_active = input_rect.collidepoint(event.pos)
             return
@@ -278,12 +382,50 @@ class Game:
             bullet.update(dt)
         for zombie in self.entities.zombies:
             zombie.update(dt, player.center, self.pathfinder, self.walls)
+        self._separate_zombies()
 
         self._handle_collisions()
         self.entities.cleanup()
         self._spawn_next_wave_if_ready()
         self._spawn_key_if_level_clear()
         self._update_camera()
+
+    def _separate_zombies(self) -> None:
+        zombies = self.entities.zombies
+        # Repeated passes settle dense groups without a separate physics engine.
+        for _ in range(ZOMBIE_SEPARATION_MAX_PASSES):
+            had_overlap = False
+            for zombie, other in self._nearby_zombie_pairs():
+                if CollisionManager.separate(zombie, other):
+                    had_overlap = True
+                    zombie.resolve_walls(self.walls)
+                    other.resolve_walls(self.walls)
+            if not had_overlap:
+                break
+
+    def _nearby_zombie_pairs(self) -> Iterator[tuple[Zombie, Zombie]]:
+        """Yield nearby pairs using a grid as a broad-phase collision pass."""
+        zombies = self.entities.zombies
+        buckets: dict[tuple[int, int], list[int]] = {}
+        for index, zombie in enumerate(zombies):
+            cell = (
+                int(zombie.center.x // ZOMBIE_SIZE),
+                int(zombie.center.y // ZOMBIE_SIZE),
+            )
+            buckets.setdefault(cell, []).append(index)
+
+        for index, zombie in enumerate(zombies):
+            cell_x = int(zombie.center.x // ZOMBIE_SIZE)
+            cell_y = int(zombie.center.y // ZOMBIE_SIZE)
+            for offset_y in (-1, 0, 1):
+                for offset_x in (-1, 0, 1):
+                    nearby = buckets.get(
+                        (cell_x + offset_x, cell_y + offset_y),
+                        (),
+                    )
+                    for other_index in nearby:
+                        if other_index > index:
+                            yield zombie, zombies[other_index]
 
     def _movement_input(self) -> pygame.Vector2:
         keys = pygame.key.get_pressed()
@@ -318,14 +460,20 @@ class Game:
 
     def _handle_bullet_hits(self, player: Player) -> None:
         for bullet in self.entities.bullets:
-            if any(bullet.rect.colliderect(wall) for wall in self.walls):
+            if any(
+                CollisionManager.intersects(bullet.rect, wall)
+                for wall in self.walls
+            ):
                 bullet.alive = False
                 continue
             for zombie in self.entities.zombies:
                 bullet_hit_zombie = (
                     bullet.alive
                     and zombie.alive
-                    and bullet.rect.colliderect(zombie.rect)
+                    and CollisionManager.intersects(
+                        bullet.rect,
+                        zombie.rect,
+                    )
                 )
                 if bullet_hit_zombie:
                     bullet.alive = False
@@ -338,25 +486,32 @@ class Game:
 
     def _handle_zombie_attacks(self, player: Player) -> None:
         for zombie in self.entities.zombies:
-            if zombie.rect.colliderect(player.rect) and zombie.can_attack():
+            zombie_touches_player = CollisionManager.intersects(
+                zombie.rect,
+                player.rect,
+            )
+            if zombie_touches_player and zombie.can_attack():
                 player.take_damage(zombie.damage())
                 zombie.reset_attack()
 
     def _handle_pickups(self, player: Player) -> None:
         key = self.entities.key
-        if key is not None and key.rect.colliderect(player.rect):
+        if (
+            key is not None
+            and CollisionManager.intersects(key.rect, player.rect)
+        ):
             key.alive = False
             player.has_key = True
             if self.entities.portal is not None:
                 self.entities.portal.unlock()
             self.sound_manager.play_key_pickup()
         for medkit in self.entities.medkits:
-            if medkit.rect.colliderect(player.rect):
+            if CollisionManager.intersects(medkit.rect, player.rect):
                 medkit.alive = False
                 player.heal(MEDKIT_HEAL)
                 self.sound_manager.play_health_pickup()
         for orb in self.entities.invulnerability_orbs:
-            if orb.rect.colliderect(player.rect):
+            if CollisionManager.intersects(orb.rect, player.rect):
                 orb.alive = False
                 player.activate_invulnerability()
                 self.sound_manager.play_buff_pickup()
@@ -384,7 +539,8 @@ class Game:
         portal = self.entities.portal
         if player is None or portal is None or self.level is None:
             return
-        if not player.rect.colliderect(portal.rect.inflate(18, 18)):
+        portal_trigger = portal.rect.inflate(18, 18)
+        if not CollisionManager.intersects(player.rect, portal_trigger):
             return
         if self.level.level_id < ENDLESS_LEVEL_ID and not player.has_key:
             return
@@ -401,7 +557,8 @@ class Game:
         if player is None:
             return
         score = player.score
-        self._load_level(next_level_id, score)
+        hp = player.hp
+        self._load_level(next_level_id, score, hp)
         # Save after transition so Continue starts at the new checkpoint.
         self.save_current_game()
 
@@ -438,180 +595,27 @@ class Game:
         self.state_manager.set_state(state)
 
     def _draw(self) -> None:
-        self.screen.fill(BLACK)
         state = self.state_manager.state
-        if state == PLAYING_STATE:
-            self._draw_game()
-        elif state == PAUSE_STATE:
-            self._draw_game()
-            self._draw_pause()
-        elif state == SCORES_STATE:
-            self._draw_scores()
-        elif state in (GAME_OVER_STATE, VICTORY_STATE):
-            self._draw_end_screen(state)
-        else:
-            self._draw_menu()
-        pygame.display.flip()
-
-    def _draw_game(self) -> None:
-        if self.level is None or self.entities.player is None:
-            return
-        self._draw_level()
-        self.entities.draw(self.screen, self.camera)
-        self._draw_hud()
-        self._draw_first_level_hint()
-
-    def _draw_level(self) -> None:
-        if self.level is None:
-            return
-        for y_pos, row in enumerate(self.level.grid):
-            for x_pos, tile in enumerate(row):
-                rect = pygame.Rect(
-                    x_pos * TILE_SIZE - self.camera.x,
-                    y_pos * TILE_SIZE - self.camera.y,
-                    TILE_SIZE,
-                    TILE_SIZE,
-                )
-                if tile == "#":
-                    wall_tile = self.wall_tiles.get_tile(x_pos, y_pos)
-                    self.screen.blit(wall_tile, rect)
-                else:
-                    pygame.draw.rect(self.screen, GRAY, rect)
-                pygame.draw.rect(self.screen, BLACK, rect, width=1)
-
-    def _draw_hud(self) -> None:
-        player = self.entities.player
-        if player is None or self.level is None:
-            return
-        hud_rect = pygame.Rect(0, 0, SCREEN_WIDTH, HUD_HEIGHT)
-        pygame.draw.rect(self.screen, BLACK, hud_rect)
-        hp_text = f"HP: {player.hp}"
-        score_text = f"Score: {player.score}"
-        level_text = f"{self.level.title}"
-        key_text = "Key: yes" if player.has_key else "Key: no"
-        buff_text = "Invulnerable" if player.is_invulnerable else ""
-        self._draw_text(hp_text, HUD_MARGIN, HUD_TEXT_Y, RED)
-        self._draw_text(score_text, 130, HUD_TEXT_Y, WHITE)
-        self._draw_text(key_text, 310, HUD_TEXT_Y, ORANGE)
-        self._draw_text(buff_text, 450, HUD_TEXT_Y, BLUE)
-        self._draw_text(level_text, 650, HUD_TEXT_Y, WHITE)
-        self._draw_fps()
-
-    def _draw_fps(self) -> None:
-        fps_text = f"FPS: {self.clock.get_fps():.0f}"
-        surface = self.font.render(fps_text, True, WHITE)
-        rect = surface.get_rect(
-            top=HUD_TEXT_Y,
-            right=SCREEN_WIDTH - HUD_MARGIN,
+        scores = (
+            self.save_system.load_scores()
+            if state == SCORES_STATE
+            else []
         )
-        self.screen.blit(surface, rect)
-
-    def _draw_menu(self) -> None:
-        self.menu_art.draw(self.screen)
-        self._draw_menu_heading()
-        self._draw_name_input()
-        for button in self.menu_buttons:
-            button.draw(self.screen, self.font)
-
-    def _draw_menu_heading(self) -> None:
-        title = self.menu_title_font.render(
-            "PYSURVIVAL",
-            True,
-            MENU_TITLE_COLOR,
+        self.view.draw(
+            state,
+            self.level,
+            self.entities,
+            self.camera,
+            self.menu_buttons,
+            self.pause_buttons,
+            self.player_name,
+            self.name_input_active,
+            scores,
         )
-        subtitle = self.menu_subtitle_font.render(
-            "ZOMBIE WAVES",
-            True,
-            MENU_SUBTITLE_COLOR,
-        )
-        self.screen.blit(title, (55, 42))
-        self.screen.blit(subtitle, (78, 116))
-        pygame.draw.line(
-            self.screen,
-            MENU_BUTTON_ACCENT_COLOR,
-            (70, 164),
-            (338, 164),
-            width=3,
-        )
-
-    def _draw_pause(self) -> None:
-        overlay = pygame.Surface(
-            (SCREEN_WIDTH, SCREEN_HEIGHT),
-            pygame.SRCALPHA,
-        )
-        overlay.fill((0, 0, 0, 150))
-        self.screen.blit(overlay, (0, 0))
-        self._draw_center_title("Paused", 210)
-        for button in self.pause_buttons:
-            button.draw(self.screen, self.font)
-
-    def _draw_scores(self) -> None:
-        self._draw_center_title("Top Scores", 120)
-        scores = self.save_system.load_scores()
-        if not scores:
-            self._draw_text("No scores yet", 420, 230, WHITE)
-        for index, entry in enumerate(scores, start=1):
-            self._draw_text(
-                f"{index}. {entry.player_name} - {entry.score}",
-                330,
-                200 + index * 42,
-                WHITE,
-            )
-        self._draw_text("Esc - menu", 430, 620, GRAY)
-
-    def _draw_end_screen(self, state: str) -> None:
-        title = "Game Over" if state == GAME_OVER_STATE else "Run Complete"
-        self._draw_center_title(title, 220)
-        self._draw_text("Esc - menu", 440, 330, WHITE)
-
-    def _draw_name_input(self) -> None:
-        rect = self._name_input_rect()
-        border_color = YELLOW if self.name_input_active else GRAY
-        pygame.draw.rect(
-            self.screen,
-            MENU_BUTTON_BASE_COLOR,
-            rect,
-            border_radius=6,
-        )
-        pygame.draw.rect(self.screen, border_color, rect, width=2)
-        self._draw_text("Player name", rect.x, rect.y - 30, WHITE)
-        self._draw_text(self.player_name, rect.x + 12, rect.y + 10, WHITE)
-
-    def _draw_first_level_hint(self) -> None:
-        if self.level is None or self.level.level_id != LEVEL_ONE_ID:
-            return
-        hint_lines = [
-            "WASD - move, Left mouse - shoot",
-            "Clear all waves, pick up the key, press E near portal",
-        ]
-        panel = pygame.Rect(18, HUD_HEIGHT + 12, 520, 76)
-        pygame.draw.rect(self.screen, BLACK, panel, border_radius=6)
-        pygame.draw.rect(self.screen, YELLOW, panel, width=2)
-        for index, line in enumerate(hint_lines):
-            y_pos = panel.y + 10 + index * 28
-            self._draw_text(line, panel.x + 14, y_pos, WHITE)
-
-    @staticmethod
-    def _name_input_rect() -> pygame.Rect:
-        return pygame.Rect(70, 224, 270, 44)
 
     def _normalized_player_name(self) -> str:
         name = self.player_name.strip()
         return name or PLAYER_DEFAULT_NAME
-
-    def _draw_center_title(self, text: str, y_pos: int) -> None:
-        surface = self.large_font.render(text, True, WHITE)
-        rect = surface.get_rect(center=(SCREEN_WIDTH // 2, y_pos))
-        self.screen.blit(surface, rect)
-
-    def _draw_text(
-        self,
-        text: str,
-        x_pos: int,
-        y_pos: int,
-        color: tuple[int, int, int],
-    ) -> None:
-        self.screen.blit(self.font.render(text, True, color), (x_pos, y_pos))
 
     def _update_camera(self) -> None:
         player = self.entities.player

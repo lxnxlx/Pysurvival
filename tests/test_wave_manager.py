@@ -1,3 +1,5 @@
+import pygame
+
 from src.core.constants import (
     BLUE,
     BLUE_ZOMBIE_HP_MULTIPLIER,
@@ -25,6 +27,11 @@ class RedZombieRandom(PredictableRandom):
         return weighted_items[1][0]
 
 
+class MinimumJitterRandom(PredictableRandom):
+    def randint(self, min_value, max_value):
+        return min_value
+
+
 def build_level(level_id):
     return Level(
         level_id=level_id,
@@ -34,7 +41,6 @@ def build_level(level_id):
         zombie_spawns=[(1, 1)],
         key_position=None,
         exit_position=(2, 2),
-        wave_size=1,
     )
 
 
@@ -107,3 +113,25 @@ def test_red_zombie_has_its_own_score_value():
     wave = manager.spawn_wave(level)
 
     assert wave[0].score_value == RED_ZOMBIE_SCORE
+
+
+def test_spawned_zombies_do_not_overlap_walls():
+    manager = WaveManager(MinimumJitterRandom())
+    level = Level(
+        level_id=1,
+        title="spawn test",
+        grid=["###", "#.#", "###"],
+        player_spawn=(1, 1),
+        zombie_spawns=[(1, 1)],
+        key_position=None,
+        exit_position=(1, 1),
+    )
+    walls = [pygame.Rect(item) for item in level.wall_rects()]
+
+    zombies = manager.spawn_wave(level)
+
+    assert not any(
+        zombie.rect.colliderect(wall)
+        for zombie in zombies
+        for wall in walls
+    )

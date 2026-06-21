@@ -21,6 +21,12 @@ from src.core.constants import (
     SHOT_SOUND_FILE,
 )
 
+MUSIC_BY_LEVEL = {
+    LEVEL_ONE_ID: LEVEL_ONE_MUSIC_FILE,
+    LEVEL_TWO_ID: LEVEL_TWO_MUSIC_FILE,
+    ENDLESS_LEVEL_ID: ENDLESS_MUSIC_FILE,
+}
+
 
 class SoundManager:
     def __init__(self) -> None:
@@ -51,12 +57,7 @@ class SoundManager:
         self._play_music(MENU_MUSIC_FILE)
 
     def play_level_music(self, level_id: int) -> None:
-        music_by_level = {
-            LEVEL_ONE_ID: LEVEL_ONE_MUSIC_FILE,
-            LEVEL_TWO_ID: LEVEL_TWO_MUSIC_FILE,
-            ENDLESS_LEVEL_ID: ENDLESS_MUSIC_FILE,
-        }
-        music_file = music_by_level.get(level_id)
+        music_file = MUSIC_BY_LEVEL.get(level_id)
         if music_file is not None:
             self._play_music(music_file)
 

@@ -9,6 +9,7 @@ import pygame
 from src.core.constants import (
     GREEN,
     NORMAL_ENEMY_SPRITE_FILE,
+    NORMAL_ZOMBIE_KIND,
     NORMAL_ZOMBIE_SCORE,
     TILE_SIZE,
     ZOMBIE_ATTACK_COOLDOWN,
@@ -32,11 +33,13 @@ class Zombie(Entity):
         wave_number: int = 0,
         score_value: int = NORMAL_ZOMBIE_SCORE,
         sprite_file: Path = NORMAL_ENEMY_SPRITE_FILE,
+        kind: str = NORMAL_ZOMBIE_KIND,
     ) -> None:
         super().__init__(position, ZOMBIE_SIZE, color, ZOMBIE_HP)
         self.hp *= hp_multiplier
         self.wave_number = wave_number
         self.score_value = score_value
+        self.kind = kind
         self._sprite = SpriteCache.get(sprite_file, self.size)
         self.attack_timer = 0.0
         self._path_timer = 0.0
@@ -58,7 +61,7 @@ class Zombie(Entity):
         direction = self._next_direction(target)
         if direction.length_squared() > 0:
             self.position += direction.normalize() * ZOMBIE_SPEED * dt
-            self._resolve_walls(walls)
+            self.resolve_walls(walls)
 
     def can_attack(self) -> bool:
         return self.attack_timer == 0
@@ -95,7 +98,8 @@ class Zombie(Entity):
             return next_point - self.center
         return target - self.center
 
-    def _resolve_walls(self, walls: list[pygame.Rect]) -> None:
+    def resolve_walls(self, walls: list[pygame.Rect]) -> None:
+        """Push the zombie outside walls after movement or separation."""
         for wall in walls:
             if self.rect.colliderect(wall):
                 delta = (

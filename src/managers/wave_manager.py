@@ -9,6 +9,7 @@ import pygame
 from src.core.constants import (
     BLUE,
     BLUE_ENEMY_SPRITE_FILE,
+    BLUE_ZOMBIE_KIND,
     BLUE_ZOMBIE_HP_MULTIPLIER,
     BLUE_ZOMBIE_SCORE,
     BLUE_ZOMBIE_SPAWN_CHANCE,
@@ -20,23 +21,23 @@ from src.core.constants import (
     LEVEL_ONE_WAVES,
     LEVEL_TWO_ID,
     LEVEL_TWO_WAVES,
+    NORMAL_ZOMBIE_KIND,
     RED,
     RED_ENEMY_SPRITE_FILE,
+    RED_ZOMBIE_KIND,
     RED_ZOMBIE_HP_MULTIPLIER,
     RED_ZOMBIE_SCORE,
     RED_ZOMBIE_SPAWN_CHANCE,
     TILE_SIZE,
     WAVE_MIN_NEXT_TRIGGER_KILLS,
     WAVE_NEXT_TRIGGER_RATIO,
+    ZOMBIE_SIZE,
 )
 from src.core.level import Level
 from src.entities.zombie import Zombie
 from src.managers.random_manager import PseudoRandom
 
-NORMAL_ZOMBIE_KIND = "normal"
-RED_ZOMBIE_KIND = "red"
-BLUE_ZOMBIE_KIND = "blue"
-SPAWN_JITTER = 8
+SPAWN_JITTER = 6
 
 
 class WaveManager:
@@ -50,6 +51,23 @@ class WaveManager:
         self.wave_number = 0
         self._kills_after_last_spawn = 0
         self._last_wave_size = 0
+
+    def restore(
+        self,
+        wave_number: int,
+        kills_after_last_spawn: int,
+        last_wave_size: int,
+    ) -> None:
+        self.wave_number = max(0, wave_number)
+        self._kills_after_last_spawn = max(0, kills_after_last_spawn)
+        self._last_wave_size = max(0, last_wave_size)
+
+    def snapshot(self) -> tuple[int, int, int]:
+        return (
+            self.wave_number,
+            self._kills_after_last_spawn,
+            self._last_wave_size,
+        )
 
     def spawn_wave(self, level: Level) -> list[Zombie]:
         amount = self._next_wave_size(level)
@@ -108,22 +126,46 @@ class WaveManager:
         tile = level.zombie_spawns[index % len(level.zombie_spawns)]
         jitter_x = self._randomizer.randint(-SPAWN_JITTER, SPAWN_JITTER)
         jitter_y = self._randomizer.randint(-SPAWN_JITTER, SPAWN_JITTER)
+        tile_padding = (TILE_SIZE - ZOMBIE_SIZE) / 2
         position = pygame.Vector2(
-            tile[0] * TILE_SIZE + jitter_x,
-            tile[1] * TILE_SIZE + jitter_y,
+            tile[0] * TILE_SIZE + tile_padding + jitter_x,
+            tile[1] * TILE_SIZE + tile_padding + jitter_y,
         )
-        return self._build_zombie(position, level.level_id, wave_number)
+        kind = NORMAL_ZOMBIE_KIND
+        if level.level_id == ENDLESS_LEVEL_ID:
+            kind = self._choose_endless_kind()
+        return self.create_zombie(position, wave_number, kind)
 
-    def _build_zombie(
+    def create_zombie(
         self,
         position: pygame.Vector2,
-        level_id: int,
         wave_number: int,
+        kind: str = NORMAL_ZOMBIE_KIND,
     ) -> Zombie:
-        if level_id != ENDLESS_LEVEL_ID:
-            return Zombie(position, wave_number=wave_number)
+        if kind == BLUE_ZOMBIE_KIND:
+            return Zombie(
+                position,
+                color=BLUE,
+                hp_multiplier=BLUE_ZOMBIE_HP_MULTIPLIER,
+                wave_number=wave_number,
+                score_value=BLUE_ZOMBIE_SCORE,
+                sprite_file=BLUE_ENEMY_SPRITE_FILE,
+                kind=kind,
+            )
+        if kind == RED_ZOMBIE_KIND:
+            return Zombie(
+                position,
+                color=RED,
+                hp_multiplier=RED_ZOMBIE_HP_MULTIPLIER,
+                wave_number=wave_number,
+                score_value=RED_ZOMBIE_SCORE,
+                sprite_file=RED_ENEMY_SPRITE_FILE,
+                kind=kind,
+            )
+        return Zombie(position, GREEN, wave_number=wave_number, kind=kind)
 
-        kind = self._randomizer.weighted_choice(
+    def _choose_endless_kind(self) -> str:
+        return self._randomizer.weighted_choice(
             (
                 (BLUE_ZOMBIE_KIND, BLUE_ZOMBIE_SPAWN_CHANCE),
                 (RED_ZOMBIE_KIND, RED_ZOMBIE_SPAWN_CHANCE),
@@ -134,25 +176,6 @@ class WaveManager:
                 ),
             )
         )
-        if kind == BLUE_ZOMBIE_KIND:
-            return Zombie(
-                position,
-                color=BLUE,
-                hp_multiplier=BLUE_ZOMBIE_HP_MULTIPLIER,
-                wave_number=wave_number,
-                score_value=BLUE_ZOMBIE_SCORE,
-                sprite_file=BLUE_ENEMY_SPRITE_FILE,
-            )
-        if kind == RED_ZOMBIE_KIND:
-            return Zombie(
-                position,
-                color=RED,
-                hp_multiplier=RED_ZOMBIE_HP_MULTIPLIER,
-                wave_number=wave_number,
-                score_value=RED_ZOMBIE_SCORE,
-                sprite_file=RED_ENEMY_SPRITE_FILE,
-            )
-        return Zombie(position, GREEN, wave_number=wave_number)
 
     @staticmethod
     def _level_waves(level_id: int) -> tuple[int, ...]:

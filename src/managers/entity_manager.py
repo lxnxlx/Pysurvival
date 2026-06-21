@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pygame
 
+from src.entities.base import Entity
 from src.entities.bullet import Bullet
 from src.entities.pickup import InvulnerabilityOrb, Key, Medkit, Portal
 from src.entities.player import Player
@@ -42,8 +43,8 @@ class EntityManager:
         if self.key is not None and not self.key.alive:
             self.key = None
 
-    def all_drawable(self) -> list:
-        entities = []
+    def all_drawable(self) -> list[Entity]:
+        entities: list[Entity] = []
         if self.key is not None:
             entities.append(self.key)
         if self.portal is not None:

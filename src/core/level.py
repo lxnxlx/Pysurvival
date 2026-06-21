@@ -18,7 +18,6 @@ class Level:
     zombie_spawns: list[tuple[int, int]]
     key_position: tuple[int, int] | None
     exit_position: tuple[int, int]
-    wave_size: int
 
     @property
     def pixel_size(self) -> tuple[int, int]:
@@ -68,5 +67,4 @@ class LevelLoader:
                 else None
             ),
             exit_position=tuple(payload["exit_position"]),
-            wave_size=int(payload["wave_size"]),
         )
