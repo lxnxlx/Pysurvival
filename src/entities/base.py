@@ -1,4 +1,4 @@
-"""Base entity classes shared by gameplay objects."""
+"""Базовые классы сущностей для игровых объектов."""
 
 from __future__ import annotations
 

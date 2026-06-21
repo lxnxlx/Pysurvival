@@ -1,4 +1,4 @@
-"""Rendering for game states and the active level."""
+"""Отрисовка игровых состояний и активного уровня."""
 
 from __future__ import annotations
 
@@ -51,7 +51,7 @@ FIRST_LEVEL_HINT_RECT = pygame.Rect(18, HUD_HEIGHT + 12, 520, 76)
 
 
 class GameView:
-    """Draw all game screens without owning gameplay state."""
+    """Отрисовывает экраны, не изменяя состояние игрового процесса."""
 
     def __init__(
         self,
@@ -70,7 +70,7 @@ class GameView:
 
     @staticmethod
     def name_input_rect() -> pygame.Rect:
-        """Return a copy so callers cannot mutate shared layout state."""
+        """Возвращает копию области ввода, защищая общую разметку."""
         return NAME_INPUT_RECT.copy()
 
     def draw(

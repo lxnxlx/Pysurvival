@@ -1,4 +1,4 @@
-"""Collectable objects and portal-like trigger entities."""
+"""Подбираемые предметы и портал для перехода между уровнями."""
 
 from __future__ import annotations
 

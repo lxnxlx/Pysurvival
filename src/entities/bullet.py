@@ -1,4 +1,4 @@
-"""Projectile entity."""
+"""Сущность летящего снаряда."""
 
 from __future__ import annotations
 

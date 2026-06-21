@@ -1,4 +1,4 @@
-"""AABB collision helpers used by game code and tests."""
+"""Вспомогательные алгоритмы AABB-столкновений."""
 
 from __future__ import annotations
 
@@ -23,6 +23,16 @@ class MovableRectLike(Protocol):
 class CollisionManager:
     @staticmethod
     def intersects(left: RectLike, right: RectLike) -> bool:
+        """Проверяет пересечение прямоугольников алгоритмом AABB.
+
+        Args:
+            left: Первый прямоугольник, выровненный по осям.
+            right: Второй прямоугольник, выровненный по осям.
+
+        Returns:
+            True, если проекции пересекаются по обеим осям. Соприкосновение
+            границ не считается пересечением.
+        """
         return (
             left.left < right.right
             and left.right > right.left
@@ -36,7 +46,15 @@ class CollisionManager:
         left: MovableRectLike,
         right: MovableRectLike,
     ) -> bool:
-        """Move two overlapping square entities apart by the shortest axis."""
+        """Разделяет сущности по кратчайшей оси пересечения AABB.
+
+        Args:
+            left: Первая перемещаемая квадратная сущность.
+            right: Вторая перемещаемая квадратная сущность.
+
+        Returns:
+            True, если пересечение найдено и устранено, иначе False.
+        """
         left_rect = left.rect
         right_rect = right.rect
         if not cls.intersects(left_rect, right_rect):
@@ -63,6 +81,17 @@ class CollisionManager:
         overlap: int,
         axis: str,
     ) -> None:
+        """Распределяет глубину проникновения поровну между сущностями.
+
+        Args:
+            left: Первая перемещаемая сущность.
+            right: Вторая перемещаемая сущность.
+            overlap: Глубина пересечения по выбранной оси.
+            axis: Изменяемая координата ``x`` или ``y``.
+
+        Returns:
+            Ничего.
+        """
         # The extra pixel avoids integer Rect rounding leaving an overlap.
         displacement = (overlap + 1) / 2
         left_center = getattr(left.position, axis) + left.size / 2

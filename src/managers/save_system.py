@@ -1,4 +1,4 @@
-"""JSON persistence for progress and leaderboard data."""
+"""Хранение прогресса и таблицы рекордов в формате JSON."""
 
 from __future__ import annotations
 
@@ -62,16 +62,44 @@ class SaveSystem:
         save_file: Path = SAVE_FILE,
         scores_file: Path = SCORES_FILE,
     ) -> None:
+        """Настраивает JSON-хранилище и создает необходимые каталоги.
+
+        Args:
+            save_file: Путь к снимку состояния текущего прохождения.
+            scores_file: Путь к файлу таблицы рекордов.
+
+        Returns:
+            Ничего.
+        """
         self._save_file = save_file
         self._scores_file = scores_file
         self._save_file.parent.mkdir(parents=True, exist_ok=True)
         self._scores_file.parent.mkdir(parents=True, exist_ok=True)
 
     def save_game(self, data: SaveData) -> None:
+        """Сериализует полный снимок состояния игры в JSON.
+
+        Args:
+            data: Сохраняемое состояние игрока, волн, врагов и предметов.
+
+        Returns:
+            Ничего.
+        """
         with self._save_file.open("w", encoding="utf-8") as file:
             json.dump(asdict(data), file, indent=2)
 
     def load_game(self) -> SaveData | None:
+        """Загружает, проверяет и при необходимости обновляет снимок игры.
+
+        Неизвестные поля игнорируются для совместимости будущих версий.
+        Отсутствие версии обозначает старое сохранение, а вложенные сущности
+        преобразуются в типизированные объекты. Некорректный JSON считается
+        отсутствующим сохранением.
+
+        Returns:
+            Проверенные данные сохранения либо None, если файл отсутствует
+            или содержит некорректные данные.
+        """
         if not self._save_file.exists():
             return None
         try:
@@ -107,13 +135,32 @@ class SaveSystem:
             return None
 
     def has_save(self) -> bool:
+        """Проверяет наличие корректного снимка состояния игры.
+
+        Returns:
+            True, если сохранение существует и проходит проверку.
+        """
         return self.load_game() is not None
 
     def clear_save(self) -> None:
+        """Удаляет снимок текущего прохождения, если он существует.
+
+        Returns:
+            Ничего.
+        """
         if self._save_file.exists():
             self._save_file.unlink()
 
     def add_score(self, player_name: str, score: int) -> None:
+        """Добавляет результат, сортирует список и применяет лимит записей.
+
+        Args:
+            player_name: Имя игрока для отображения в таблице рекордов.
+            score: Итоговое количество очков за прохождение.
+
+        Returns:
+            Ничего.
+        """
         entries = self.load_scores()
         entries.append(ScoreEntry(player_name=player_name, score=score))
         entries.sort(key=lambda item: item.score, reverse=True)
@@ -125,6 +172,12 @@ class SaveSystem:
             )
 
     def load_scores(self) -> list[ScoreEntry]:
+        """Загружает и проверяет записи таблицы рекордов из JSON.
+
+        Returns:
+            Список результатов либо пустой список при отсутствии или
+            повреждении данных.
+        """
         if not self._scores_file.exists():
             return []
         try:
@@ -138,7 +191,17 @@ class SaveSystem:
 
     @staticmethod
     def _score_from_payload(payload: object) -> ScoreEntry:
-        # Older score files had timestamps but no names; keep them readable.
+        """Преобразует значение JSON в совместимую запись результата.
+
+        Args:
+            payload: Исходное значение из массива таблицы рекордов.
+
+        Returns:
+            Типизированную запись. Старые записи получают стандартное имя.
+
+        Raises:
+            TypeError: Если запись не является объектом JSON.
+        """
         if not isinstance(payload, dict):
             raise TypeError("Score entry must be a JSON object")
         return ScoreEntry(

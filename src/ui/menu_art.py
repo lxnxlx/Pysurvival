@@ -1,4 +1,4 @@
-"""Background and character composition for the main menu."""
+"""Композиция фона и персонажей главного меню."""
 
 from __future__ import annotations
 

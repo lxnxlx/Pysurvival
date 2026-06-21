@@ -1,4 +1,4 @@
-"""Zombie entity that uses grid pathfinding."""
+"""Противник, использующий поиск пути по сетке."""
 
 from __future__ import annotations
 
@@ -52,6 +52,17 @@ class Zombie(Entity):
         pathfinder: Pathfinder,
         walls: list[pygame.Rect],
     ) -> None:
+        """Обновляет таймеры и путь A*, затем перемещается к следующему тайлу.
+
+        Args:
+            dt: Время с предыдущего кадра в секундах.
+            target: Центр игрока в мировых координатах.
+            pathfinder: Алгоритм A*, настроенный для активного уровня.
+            walls: Прямоугольники стен для обработки после движения.
+
+        Returns:
+            Ничего.
+        """
         self.attack_timer = max(0.0, self.attack_timer - dt)
         self._path_timer = max(0.0, self._path_timer - dt)
         if self._path_timer == 0:
@@ -81,6 +92,15 @@ class Zombie(Entity):
         target: pygame.Vector2,
         pathfinder: Pathfinder,
     ) -> list[tuple[int, int]]:
+        """Преобразует мировые координаты в тайлы и запрашивает путь A*.
+
+        Args:
+            target: Конечная точка в мировых координатах.
+            pathfinder: Алгоритм A* для активной карты тайлов.
+
+        Returns:
+            Упорядоченные координаты тайлов от противника до цели.
+        """
         start = (
             int(self.center.x // TILE_SIZE),
             int(self.center.y // TILE_SIZE),
@@ -89,6 +109,15 @@ class Zombie(Entity):
         return pathfinder.find_path(start, goal)
 
     def _next_direction(self, target: pygame.Vector2) -> pygame.Vector2:
+        """Вычисляет направление к следующему тайлу пути или напрямую к цели.
+
+        Args:
+            target: Центр игрока, используемый при отсутствии промежуточных
+                тайлов пути.
+
+        Returns:
+            Ненормализованный вектор в направлении следующей точки движения.
+        """
         if len(self._path) > 1:
             tile_x, tile_y = self._path[1]
             next_point = pygame.Vector2(
@@ -99,7 +128,14 @@ class Zombie(Entity):
         return target - self.center
 
     def resolve_walls(self, walls: list[pygame.Rect]) -> None:
-        """Push the zombie outside walls after movement or separation."""
+        """Выталкивает противника из стены по оси наименьшего проникновения.
+
+        Args:
+            walls: Прямоугольники стен, которые не может занимать противник.
+
+        Returns:
+            Ничего.
+        """
         for wall in walls:
             if self.rect.colliderect(wall):
                 delta = (

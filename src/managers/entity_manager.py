@@ -1,4 +1,4 @@
-"""Storage and cleanup for active gameplay entities."""
+"""Хранение и очистка активных игровых сущностей."""
 
 from __future__ import annotations
 

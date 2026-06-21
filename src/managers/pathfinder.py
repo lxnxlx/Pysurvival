@@ -1,4 +1,4 @@
-"""A* pathfinding over a rectangular tile grid."""
+"""Поиск пути A* по прямоугольной сетке тайлов."""
 
 from __future__ import annotations
 
@@ -11,6 +11,14 @@ GridPosition = tuple[int, int]
 
 class Pathfinder:
     def __init__(self, grid: list[str]) -> None:
+        """Сохраняет карту тайлов, используемую алгоритмом A*.
+
+        Args:
+            grid: Прямоугольная карта, где ``#`` обозначает стену.
+
+        Returns:
+            Ничего.
+        """
         self._grid = grid
         self._height = len(grid)
         self._width = len(grid[0]) if grid else 0
@@ -20,6 +28,20 @@ class Pathfinder:
         start: GridPosition,
         goal: GridPosition,
     ) -> list[GridPosition]:
+        """Находит кратчайший путь по четырем направлениям алгоритмом A*.
+
+        Очередь с приоритетом сортирует тайлы по сумме стоимости пройденного
+        пути и Манхэттенского расстояния до цели. Повторный обход тайла
+        выполняется только при обнаружении более короткого маршрута.
+
+        Args:
+            start: Координаты начального тайла в формате ``(x, y)``.
+            goal: Координаты конечного тайла в формате ``(x, y)``.
+
+        Returns:
+            Путь, включающий начальный и конечный тайлы. Возвращает пустой
+            список, если путь не существует или одна из точек заблокирована.
+        """
         if not self._is_walkable(start) or not self._is_walkable(goal):
             return []
 
@@ -49,6 +71,14 @@ class Pathfinder:
         return self._restore_path(came_from, goal)
 
     def _neighbors(self, position: GridPosition) -> Iterable[GridPosition]:
+        """Возвращает проходимых ортогональных соседей тайла.
+
+        Args:
+            position: Координаты проверяемого тайла.
+
+        Returns:
+            Ленивый итерируемый объект с координатами доступных соседей.
+        """
         x_pos, y_pos = position
         candidates = (
             (x_pos + 1, y_pos),
@@ -63,6 +93,14 @@ class Pathfinder:
         )
 
     def _is_walkable(self, position: GridPosition) -> bool:
+        """Проверяет, находится ли тайл внутри карты и не является ли стеной.
+
+        Args:
+            position: Координаты проверяемого тайла.
+
+        Returns:
+            True для тайла пола внутри сетки, иначе False.
+        """
         x_pos, y_pos = position
         outside_grid = (
             x_pos < 0
@@ -76,6 +114,15 @@ class Pathfinder:
 
     @staticmethod
     def _heuristic(left: GridPosition, right: GridPosition) -> int:
+        """Вычисляет Манхэттенское расстояние для движения по четырем осям.
+
+        Args:
+            left: Координаты первого тайла.
+            right: Координаты второго тайла.
+
+        Returns:
+            Минимальное количество ортогональных шагов без учета препятствий.
+        """
         return abs(left[0] - right[0]) + abs(left[1] - right[1])
 
     @staticmethod
@@ -83,6 +130,15 @@ class Pathfinder:
         came_from: dict[GridPosition, GridPosition | None],
         goal: GridPosition,
     ) -> list[GridPosition]:
+        """Восстанавливает прямой путь по таблице предшественников A*.
+
+        Args:
+            came_from: Соответствие посещенных тайлов их предшественникам.
+            goal: Конечный тайл требуемого пути.
+
+        Returns:
+            Упорядоченные координаты от начального тайла до конечного.
+        """
         current: GridPosition | None = goal
         path = []
         while current is not None:

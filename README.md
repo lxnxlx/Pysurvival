@@ -20,6 +20,8 @@ python -m src.main
 
 ## Project Structure
 
+Detailed Mermaid diagram: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+
 - `src/core` - game loop, states, constants, level loading
 - `src/entities` - player, zombies, bullets, pickups
 - `src/managers` - collisions, pathfinding, saving, waves, entity storage

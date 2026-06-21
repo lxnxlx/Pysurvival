@@ -1,4 +1,4 @@
-"""Zombie wave spawning rules."""
+"""Правила создания и переключения волн противников."""
 
 from __future__ import annotations
 
@@ -42,12 +42,25 @@ SPAWN_JITTER = 6
 
 class WaveManager:
     def __init__(self, randomizer: PseudoRandom | None = None) -> None:
+        """Инициализирует прогресс волн с передаваемым генератором случайности.
+
+        Args:
+            randomizer: Общий генератор псевдослучайных игровых событий.
+
+        Returns:
+            Ничего.
+        """
         self._randomizer = randomizer or PseudoRandom()
         self.wave_number = 0
         self._kills_after_last_spawn = 0
         self._last_wave_size = 0
 
     def reset(self) -> None:
+        """Сбрасывает счетчики волн для нового уровня.
+
+        Returns:
+            Ничего.
+        """
         self.wave_number = 0
         self._kills_after_last_spawn = 0
         self._last_wave_size = 0
@@ -58,11 +71,26 @@ class WaveManager:
         kills_after_last_spawn: int,
         last_wave_size: int,
     ) -> None:
+        """Восстанавливает проверенные счетчики волн из сохранения.
+
+        Args:
+            wave_number: Номер последней созданной волны.
+            kills_after_last_spawn: Убийства текущей волны для расчета порога.
+            last_wave_size: Количество противников в последней волне.
+
+        Returns:
+            Ничего.
+        """
         self.wave_number = max(0, wave_number)
         self._kills_after_last_spawn = max(0, kills_after_last_spawn)
         self._last_wave_size = max(0, last_wave_size)
 
     def snapshot(self) -> tuple[int, int, int]:
+        """Возвращает состояние волн, необходимое для продолжения игры.
+
+        Returns:
+            Номер волны, убийства текущей волны и размер последней волны.
+        """
         return (
             self.wave_number,
             self._kills_after_last_spawn,
@@ -70,6 +98,14 @@ class WaveManager:
         )
 
     def spawn_wave(self, level: Level) -> list[Zombie]:
+        """Создает следующую волну и сбрасывает ее счетчик убийств.
+
+        Args:
+            level: Активный уровень с правилами волн и точками появления.
+
+        Returns:
+            Список созданных врагов либо пустой список после последней волны.
+        """
         amount = self._next_wave_size(level)
         if amount == 0:
             return []
@@ -83,21 +119,54 @@ class WaveManager:
         return zombies
 
     def register_kill(self, wave_number: int) -> None:
+        """Засчитывает убийство, только если враг относится к текущей волне.
+
+        Args:
+            wave_number: Номер волны, сохраненный в побежденном противнике.
+
+        Returns:
+            Ничего.
+        """
         if wave_number != self.wave_number:
             return
         self._kills_after_last_spawn += 1
 
     def should_spawn_next_wave(self, level: Level) -> bool:
+        """Проверяет, достигнут ли порог убийств для следующей волны.
+
+        Args:
+            level: Активный уровень, определяющий наличие следующей волны.
+
+        Returns:
+            True после достижения процентного и минимального порогов убийств.
+        """
         if not self._has_next_wave(level) or self._last_wave_size == 0:
             return False
         return self._kills_after_last_spawn >= self._next_wave_threshold()
 
     def has_spawned_all_waves(self, level: Level) -> bool:
+        """Проверяет, созданы ли все волны конечного уровня.
+
+        Args:
+            level: Активный уровень, прогресс которого проверяется.
+
+        Returns:
+            True только для завершенного конечного уровня. Для бесконечного
+            режима всегда возвращается False.
+        """
         if level.level_id == ENDLESS_LEVEL_ID:
             return False
         return self.wave_number >= len(self._level_waves(level.level_id))
 
     def _next_wave_size(self, level: Level) -> int:
+        """Вычисляет количество врагов следующей волны.
+
+        Args:
+            level: Активный уровень с фиксированными или растущими волнами.
+
+        Returns:
+            Количество врагов либо ноль после последней конечной волны.
+        """
         if level.level_id == ENDLESS_LEVEL_ID:
             return ENDLESS_FIRST_WAVE_SIZE + (
                 self.wave_number * ENDLESS_WAVE_INCREMENT
@@ -109,11 +178,24 @@ class WaveManager:
         return waves[self.wave_number]
 
     def _has_next_wave(self, level: Level) -> bool:
+        """Проверяет наличие следующей волны на уровне.
+
+        Args:
+            level: Активный уровень с проверяемой последовательностью волн.
+
+        Returns:
+            True для бесконечного режима или до последней конечной волны.
+        """
         if level.level_id == ENDLESS_LEVEL_ID:
             return True
         return self.wave_number < len(self._level_waves(level.level_id))
 
     def _next_wave_threshold(self) -> int:
+        """Вычисляет порог убийств по доле волны и абсолютному минимуму.
+
+        Returns:
+            Округленный вверх порог, который не может быть ниже минимума.
+        """
         threshold = self._last_wave_size * WAVE_NEXT_TRIGGER_RATIO
         return max(WAVE_MIN_NEXT_TRIGGER_KILLS, math.ceil(threshold))
 
@@ -123,6 +205,16 @@ class WaveManager:
         index: int,
         wave_number: int,
     ) -> Zombie:
+        """Создает врага около центра выбранного тайла появления.
+
+        Args:
+            level: Активный уровень с доступными точками появления.
+            index: Индекс врага для циклического выбора точки появления.
+            wave_number: Номер волны, назначаемый противнику.
+
+        Returns:
+            Обычного врага либо случайный вариант бесконечного режима.
+        """
         tile = level.zombie_spawns[index % len(level.zombie_spawns)]
         jitter_x = self._randomizer.randint(-SPAWN_JITTER, SPAWN_JITTER)
         jitter_y = self._randomizer.randint(-SPAWN_JITTER, SPAWN_JITTER)
@@ -142,6 +234,16 @@ class WaveManager:
         wave_number: int,
         kind: str = NORMAL_ZOMBIE_KIND,
     ) -> Zombie:
+        """Создает вариант врага по его постоянному идентификатору.
+
+        Args:
+            position: Позиция левого верхнего угла врага в мире.
+            wave_number: Номер волны для учета убийств.
+            kind: Тип обычного, красного или синего противника.
+
+        Returns:
+            Настроенного врага с соответствующими здоровьем, спрайтом и очками.
+        """
         if kind == BLUE_ZOMBIE_KIND:
             return Zombie(
                 position,
@@ -165,6 +267,11 @@ class WaveManager:
         return Zombie(position, GREEN, wave_number=wave_number, kind=kind)
 
     def _choose_endless_kind(self) -> str:
+        """Выбирает тип врага бесконечного режима по заданным весам.
+
+        Returns:
+            Идентификатор обычного, красного или синего врага.
+        """
         return self._randomizer.weighted_choice(
             (
                 (BLUE_ZOMBIE_KIND, BLUE_ZOMBIE_SPAWN_CHANCE),
@@ -179,6 +286,15 @@ class WaveManager:
 
     @staticmethod
     def _level_waves(level_id: int) -> tuple[int, ...]:
+        """Возвращает последовательность размеров волн конечного уровня.
+
+        Args:
+            level_id: Числовой идентификатор уровня.
+
+        Returns:
+            Настроенные размеры волн либо пустой кортеж для бесконечного
+            режима.
+        """
         if level_id == LEVEL_ONE_ID:
             return LEVEL_ONE_WAVES
         if level_id == LEVEL_TWO_ID:

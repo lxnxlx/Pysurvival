@@ -1,4 +1,4 @@
-"""Loading and deterministic selection of wall tile sprites."""
+"""Загрузка и детерминированный выбор спрайтов стен."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Small state holder for menu, gameplay and score screens."""
+"""Хранилище состояния меню, игрового процесса и экрана рекордов."""
 
 from src.core.constants import MENU_STATE
 

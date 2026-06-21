@@ -1,4 +1,4 @@
-"""Project-wide constants kept in one module to avoid magic numbers."""
+"""Общие константы проекта, исключающие магические числа."""
 
 from pathlib import Path
 

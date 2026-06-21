@@ -1,4 +1,4 @@
-"""Loading and playback of short gameplay sounds."""
+"""Загрузка и воспроизведение коротких игровых звуков."""
 
 from __future__ import annotations
 

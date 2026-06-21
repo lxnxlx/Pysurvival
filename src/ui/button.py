@@ -1,4 +1,4 @@
-"""Minimal button widget for pygame menus."""
+"""Простая кнопка для меню pygame."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Main pygame application and high-level game orchestration."""
+"""Главное приложение pygame и управление игровыми подсистемами."""
 
 from __future__ import annotations
 
@@ -391,8 +391,16 @@ class Game:
         self._update_camera()
 
     def _separate_zombies(self) -> None:
+        """Устраняет пересечения врагов ограниченным итеративным решателем.
+
+        Фиксированный лимит проходов предотвращает просадки FPS на больших
+        бесконечных волнах. Каждый проход использует пространственную сетку.
+
+        Returns:
+            Ничего.
+        """
         zombies = self.entities.zombies
-        # Repeated passes settle dense groups without a separate physics engine.
+        # Repeated passes settle groups without a separate physics engine.
         for _ in range(ZOMBIE_SEPARATION_MAX_PASSES):
             had_overlap = False
             for zombie, other in self._nearby_zombie_pairs():
@@ -404,7 +412,14 @@ class Game:
                 break
 
     def _nearby_zombie_pairs(self) -> Iterator[tuple[Zombie, Zombie]]:
-        """Yield nearby pairs using a grid as a broad-phase collision pass."""
+        """Создает пары для проверки столкновений с помощью сетки.
+
+        Враги распределяются по ячейкам размером с их хитбокс. Пересекающийся
+        квадрат может находиться только в текущей или восьми соседних ячейках.
+
+        Returns:
+            Уникальные пары соседних врагов для точной проверки AABB.
+        """
         zombies = self.entities.zombies
         buckets: dict[tuple[int, int], list[int]] = {}
         for index, zombie in enumerate(zombies):
@@ -517,6 +532,14 @@ class Game:
                 self.sound_manager.play_buff_pickup()
 
     def _try_drop_loot(self, center: pygame.Vector2) -> None:
+        """Проверяет независимые псевдослучайные шансы выпадения предметов.
+
+        Args:
+            center: Положение центра побежденного врага в мире.
+
+        Returns:
+            Ничего.
+        """
         if self.randomizer.chance(MEDKIT_DROP_CHANCE):
             self.entities.medkits.append(self._build_pickup(Medkit, center))
         if self.randomizer.chance(INVULNERABILITY_ORB_DROP_CHANCE):

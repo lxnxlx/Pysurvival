@@ -1,4 +1,4 @@
-"""Player entity with movement, shooting and temporary buffs."""
+"""Игрок с механиками движения, стрельбы и временных усилений."""
 
 from __future__ import annotations
 
@@ -50,6 +50,14 @@ class Player(Entity):
         return self._facing_angle
 
     def update_timers(self, dt: float) -> None:
+        """Обновляет таймеры стрельбы и неуязвимости.
+
+        Args:
+            dt: Время с предыдущего кадра в секундах.
+
+        Returns:
+            Ничего.
+        """
         self._shoot_timer = max(0.0, self._shoot_timer - dt)
         self._invulnerability_timer = max(
             0.0,
@@ -68,6 +76,17 @@ class Player(Entity):
         walls: list[pygame.Rect],
         bounds: pygame.Rect,
     ) -> None:
+        """Перемещает игрока с раздельной обработкой столкновений по осям.
+
+        Args:
+            direction: Исходный вектор направления движения.
+            dt: Время с предыдущего кадра в секундах.
+            walls: Прямоугольники непроходимых стен.
+            bounds: Прямоугольник допустимой области движения игрока.
+
+        Returns:
+            Ничего.
+        """
         if direction.length_squared() > 0:
             direction = direction.normalize()
         # Axis-separated movement keeps collision response simple and stable.
@@ -76,6 +95,15 @@ class Player(Entity):
         self._move_axis(pygame.Vector2(0, velocity.y), walls, bounds)
 
     def try_shoot(self, target: pygame.Vector2) -> Bullet | None:
+        """Создает снаряд, если цель корректна и перезарядка завершена.
+
+        Args:
+            target: Положение курсора в мировых координатах.
+
+        Returns:
+            Снаряд, направленный в цель, либо None во время перезарядки или
+            при совпадении цели с центром игрока.
+        """
         direction = target - self.center
         if direction.length_squared() == 0:
             return None
@@ -129,6 +157,19 @@ class Player(Entity):
         walls: list[pygame.Rect],
         bounds: pygame.Rect,
     ) -> None:
+        """Применяет смещение по одной оси и обрабатывает препятствия.
+
+        Раздельное движение по осям не позволяет проходить через углы стен
+        по диагонали и помогает определить сторону столкновения.
+
+        Args:
+            delta: Горизонтальное или вертикальное смещение.
+            walls: Прямоугольники непроходимых стен.
+            bounds: Прямоугольник допустимой области движения игрока.
+
+        Returns:
+            Ничего.
+        """
         self.position += delta
         rect = self.rect
         if not bounds.contains(rect):

@@ -1,4 +1,4 @@
-"""Entry point for PySurvival."""
+"""Точка входа в PySurvival."""
 
 from src.core.game import Game
 

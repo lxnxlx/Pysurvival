@@ -1,4 +1,4 @@
-"""Level model and JSON loading."""
+"""Модель уровня и загрузка данных из JSON."""
 
 from __future__ import annotations
 
@@ -48,9 +48,25 @@ class Level:
 
 class LevelLoader:
     def __init__(self, level_dir: Path = LEVEL_DIR) -> None:
+        """Настраивает каталог, содержащий JSON-файлы уровней.
+
+        Args:
+            level_dir: Каталог поиска уровня по числовому идентификатору.
+
+        Returns:
+            Ничего.
+        """
         self._level_dir = level_dir
 
     def load(self, level_id: int) -> Level:
+        """Преобразует JSON-файл в неизменяемую модель уровня.
+
+        Args:
+            level_id: Числовой идентификатор в имени файла уровня.
+
+        Returns:
+            Загруженный уровень с координатами, преобразованными в кортежи.
+        """
         path = self._level_dir / f"level_{level_id}.json"
         with path.open("r", encoding="utf-8") as file:
             payload = json.load(file)

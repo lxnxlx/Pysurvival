@@ -1,4 +1,4 @@
-"""Shared loading and tinting cache for entity sprites."""
+"""Общий кеш загрузки и окрашивания спрайтов сущностей."""
 
 from __future__ import annotations
 
