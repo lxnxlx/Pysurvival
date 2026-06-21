@@ -8,7 +8,6 @@ from src.core.constants import (
     BLACK,
     BLUE,
     BULLET_DAMAGE,
-    DARK_GRAY,
     ENDLESS_LEVEL_ID,
     FPS,
     GAME_OVER_STATE,
@@ -21,14 +20,18 @@ from src.core.constants import (
     INVULNERABILITY_ORB_DROP_CHANCE,
     MEDKIT_DROP_CHANCE,
     MEDKIT_HEAL,
+    MENU_BUTTON_ACCENT_COLOR,
+    MENU_BUTTON_BASE_COLOR,
+    MENU_BUTTON_BORDER_COLOR,
+    MENU_BUTTON_HOVER_COLOR,
     MENU_STATE,
+    MENU_SUBTITLE_COLOR,
+    MENU_TITLE_COLOR,
     ORANGE,
     PAUSE_STATE,
     PLAYING_STATE,
-    PORTAL_SIZE,
     PLAYER_DEFAULT_NAME,
     PLAYER_NAME_MAX_LENGTH,
-    PURPLE,
     RED,
     SCREEN_HEIGHT,
     SCREEN_WIDTH,
@@ -51,6 +54,7 @@ from src.managers.save_system import SaveData, SaveSystem
 from src.managers.sound_manager import SoundManager
 from src.managers.wave_manager import WaveManager
 from src.ui.button import Button
+from src.ui.menu_art import MenuArt
 from src.ui.tile_set import WallTileSet
 
 
@@ -62,6 +66,9 @@ class Game:
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont("arial", 24)
         self.large_font = pygame.font.SysFont("arial", 52, bold=True)
+        self.menu_title_font = pygame.font.SysFont("impact", 68)
+        self.menu_subtitle_font = pygame.font.SysFont("impact", 34)
+        self.menu_art = MenuArt()
         self.wall_tiles = WallTileSet(
             WALL_TILE_ATLAS_FILE,
             TILE_SIZE,
@@ -96,23 +103,23 @@ class Game:
         pygame.quit()
 
     def _build_menu_buttons(self) -> list[Button]:
+        actions = [
+            ("Start", self.start_new_game),
+            ("Continue", self.continue_game),
+            ("Scores", self.show_scores),
+            ("Quit", self.stop),
+        ]
         return [
             Button(
-                pygame.Rect(392, 290, 240, 48),
-                "Start",
-                self.start_new_game,
-            ),
-            Button(
-                pygame.Rect(392, 350, 240, 48),
-                "Continue",
-                self.continue_game,
-            ),
-            Button(
-                pygame.Rect(392, 410, 240, 48),
-                "Scores",
-                self.show_scores,
-            ),
-            Button(pygame.Rect(392, 470, 240, 48), "Quit", self.stop),
+                pygame.Rect(70, 300 + index * 58, 270, 46),
+                label,
+                action,
+                base_color=MENU_BUTTON_BASE_COLOR,
+                hover_color=MENU_BUTTON_HOVER_COLOR,
+                border_color=MENU_BUTTON_BORDER_COLOR,
+                accent_color=MENU_BUTTON_ACCENT_COLOR,
+            )
+            for index, (label, action) in enumerate(actions)
         ]
 
     def _build_pause_buttons(self) -> list[Button]:
@@ -500,11 +507,32 @@ class Game:
         self.screen.blit(surface, rect)
 
     def _draw_menu(self) -> None:
-        self._draw_center_title("PySurvival", 150)
-        self._draw_text("Zombie Waves", 400, 215, PURPLE)
+        self.menu_art.draw(self.screen)
+        self._draw_menu_heading()
         self._draw_name_input()
         for button in self.menu_buttons:
             button.draw(self.screen, self.font)
+
+    def _draw_menu_heading(self) -> None:
+        title = self.menu_title_font.render(
+            "PYSURVIVAL",
+            True,
+            MENU_TITLE_COLOR,
+        )
+        subtitle = self.menu_subtitle_font.render(
+            "ZOMBIE WAVES",
+            True,
+            MENU_SUBTITLE_COLOR,
+        )
+        self.screen.blit(title, (55, 42))
+        self.screen.blit(subtitle, (78, 116))
+        pygame.draw.line(
+            self.screen,
+            MENU_BUTTON_ACCENT_COLOR,
+            (70, 164),
+            (338, 164),
+            width=3,
+        )
 
     def _draw_pause(self) -> None:
         overlay = pygame.Surface(
@@ -539,9 +567,14 @@ class Game:
     def _draw_name_input(self) -> None:
         rect = self._name_input_rect()
         border_color = YELLOW if self.name_input_active else GRAY
-        pygame.draw.rect(self.screen, DARK_GRAY, rect, border_radius=6)
+        pygame.draw.rect(
+            self.screen,
+            MENU_BUTTON_BASE_COLOR,
+            rect,
+            border_radius=6,
+        )
         pygame.draw.rect(self.screen, border_color, rect, width=2)
-        self._draw_text("Name:", rect.x - 78, rect.y + 10, WHITE)
+        self._draw_text("Player name", rect.x, rect.y - 30, WHITE)
         self._draw_text(self.player_name, rect.x + 12, rect.y + 10, WHITE)
 
     def _draw_first_level_hint(self) -> None:
@@ -560,7 +593,7 @@ class Game:
 
     @staticmethod
     def _name_input_rect() -> pygame.Rect:
-        return pygame.Rect(392, 238, 240, 42)
+        return pygame.Rect(70, 224, 270, 44)
 
     def _normalized_player_name(self) -> str:
         name = self.player_name.strip()
